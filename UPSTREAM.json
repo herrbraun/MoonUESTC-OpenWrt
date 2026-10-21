@@ -17,6 +17,9 @@
   },
   "local_additions": [
     "lite.py",
+    "multi.py",
+    "account_store.py",
+    "account_api.py",
     "run.sh",
     "install.sh",
     "tools/install.py",

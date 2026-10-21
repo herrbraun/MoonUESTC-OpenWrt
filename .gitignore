@@ -12,3 +12,11 @@ __pycache__/
 *.py[cod]
 .venv/
 public-status.json
+profiles/
+scheduler/
+api-queue/
+api-last-request.json
+accounts.json
+status.json
+status-*.json
+runtime/

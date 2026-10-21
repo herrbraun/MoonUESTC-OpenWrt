@@ -1,62 +1,56 @@
 # MoonUESTC-OpenWrt
 
-基于 [MoonUESTC](https://github.com/horoscope963852/MoonUESTC) 的 OpenWrt 低占用版本。Python 按任务启动，网页复用 uhttpd，不新增常驻网页进程。
+基于 [MoonUESTC](https://github.com/horoscope963852/MoonUESTC) 的 OpenWrt 低占用版本。Python 按任务启动，网页复用 uhttpd，管理操作使用按需 CGI，不增加常驻 Python 服务。
 
-## 改了什么
+支持最多 20 个账号，分别配置地点、执行时间和启用状态。网页可切换账号、添加、编辑、删除，以及发起只读检查；管理操作使用路由器 root 管理密码解锁。
+
+## 与上游的区别
 
 | 部分 | 本版本 |
 | --- | --- |
-| 学校认证、签到、范围与时段判断、提交回读 | 保留上游实现 |
-| 完整网页后台、用户管理、注册、队列、Docker | 不包含 |
-| 调度 | OpenWrt cron，每日单次执行 |
-| 网页 | 静态 HTML + 过滤后的状态 JSON，刷新不请求学校 |
-| 配置与 Cookie | 路由器私有目录，文件权限 0600 |
-| 依赖 | Python 标准库模块、PyCryptodome；无 Flask、Waitress、Argon2、ALTCHA |
+| 学校认证、范围及时段判断、提交和回读 | 十个上游模块原样保留 |
+| Flask 后台、注册、用户权限、Docker | 不包含 |
+| 调度 | OpenWrt cron；同一时间去重，多账号顺序执行，间隔 20 秒 |
+| 状态页 | 单个静态 HTML + 脱敏 JSON；刷新不访问学校 |
+| 管理认证 | 复用 rpcd 管理会话，Cookie 有效期 900 秒 |
+| 私密数据 | 配置、Cookie、数据库位于私有目录，文件权限 0600；没有原版加密保险库 |
 
-不绑定宿舍或路由器型号。已验证 CR6608 / OpenWrt 24.10.8；其他设备未实机验证。登录、位置检查及页面已通过，首次真实签到尚未验证。
+不绑定宿舍或路由器型号。已在 CR6608 / OpenWrt 24.10.8 验证登录、位置检查和多账号网页管理；首次真实签到尚未验证。
 
 ## 安装
 
-在使用 opkg 的 OpenWrt 上，以 root 执行：
+需要已启用 LuCI 的 OpenWrt，uhttpd 提供 `/cgi-bin` 和 `/ubus`，rpcd 允许 root 登录及 `luci-base` 写权限。当前认证桥接使用本机 HTTP 80 端口。运行前确认系统时间及 cron 时区为北京时间。
+
+将仓库文件放到路由器 `/root/MoonUESTC-OpenWrt`，在使用 opkg 的系统中执行：
 
 ```sh
 opkg update
 opkg install python3-light python3-urllib python3-openssl python3-sqlite3 python3-logging python3-uuid python3-codecs python3-cryptodome
 cd /root/MoonUESTC-OpenWrt
-cp config.example.json config.json
-chmod 600 config.json
-vi config.json
-```
-
-填写学号、密码、可信浏览器指纹和位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。
-
-查询学校允许的地点，再填写对应 GCJ-02 经纬度、地点名称和半径：
-
-```sh
-python3 lite.py locations
-python3 lite.py prepare
 sh install.sh
 ```
 
-安装器先做只读检查，通过后设置 cron 并启用网页。默认北京时间 21:01；运行前确认路由器时区为 `Asia/Shanghai`。安装保留其他 cron 条目，并备份配置和原 crontab。
+访问 `http://路由器地址/moonuestc/`，点击“管理”输入路由器 root 管理密码，再添加账号。管理密码通过当前连接提交，建议使用已配置的 HTTPS 访问；仅在可信内网开放管理页。
 
-访问 `http://路由器地址/moonuestc/`。网页只展示结果，不提供账号配置或提交按钮。
+填写学校账号、密码、可信浏览器指纹，以及实际配置的 GCJ-02 位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑时密码、指纹留空表示保留。
+
+如需先从命令行查询学校地点，可填写 `config.example.json` 的副本 `config.json`，执行 `python3 lite.py locations`。旧版 `config.json` 会在首次安装时只读校验并迁移为 `me`，保留原时间和启用状态；已有 `profiles/` 的升级不会重新迁移或重新登录学校。安装备份配置、原 cron 和网页，并保留其他 cron 条目。
 
 ## 运行与停用
 
+安装后配置以 `profiles/<id>.json` 为准，旧 `config.json` 仅作迁移来源。网页关闭账号计划即可暂停，修改时间会同步更新 cron。账号名称、脱敏学号、计划和结果可被内网访客查看，秘密不进入公开状态文件。
+
 ```sh
-python3 lite.py diagnose                  # 登录及状态查询
-python3 lite.py prepare                   # 位置和时段检查，不提交
-python3 lite.py checkin --submit          # 在学校时段内提交并回读
-cat last-run.log                         # 最近一次定时任务日志
+python3 multi.py diagnose --account me    # 登录及状态查询，不提交
+python3 multi.py prepare --account me     # 位置和时段检查，不提交
+python3 multi.py checkin --account me --submit  # 手动提交并回读
+cat last-run.log                         # 最近一批定时任务日志
 ```
 
-将 `config.json` 的 `automation_enabled` 改为 `false` 可暂停自动执行。修改 `run_at` 后重新运行 `sh install.sh`。二次验证或验证码需要本人处理；配置坐标不是实时 GPS。
+二次验证或验证码需要本人处理；配置坐标不是实时 GPS。每账号独立状态及最多八条摘要，共享 `state/` 按学号隔离 Cookie 和每日提交保护。成功以学校记录回读为准，结果不明确时不会盲目重发。删除账号不会删除这些提交保护记录。
 
-状态、Cookie 和提交记录在 `state/`；网页最多保留八条任务摘要。成功以学校记录回读为准，提交结果不明确时不会盲目重发。
+## 验证与来源
 
-## 来源与验证
+开发机运行 `python -m pip install -r requirements.txt`，然后 `python -m unittest discover -s tests`。测试使用合成配置，不访问学校。可用 Chrome 和 Node.js 执行 `node tests/check_ui.cjs` 检查网页；非默认 Chrome 路径使用 `CHROME_PATH` 环境变量指定。
 
-保留的十个上游模块未修改，版本与校验值见 [UPSTREAM.json](UPSTREAM.json)。第三方声明见 [NOTICE.md](NOTICE.md)，许可证见 [LICENSE](LICENSE)。
-
-开发机离线测试：`python -m pip install -r requirements.txt`，然后 `python -m unittest discover -s tests`。测试不使用真实账号或学校网络。
+[结构与调度](docs/architecture.md) · [管理 API](docs/API.md) · [上游版本与校验](UPSTREAM.json) · [来源声明](NOTICE.md) · [许可证](LICENSE)

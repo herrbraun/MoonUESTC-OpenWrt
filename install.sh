@@ -10,6 +10,6 @@ case "$ROOT" in
 esac
 umask 077
 chmod 700 "$ROOT"
-chmod 600 "$ROOT/config.json"
+if [ -f "$ROOT/config.json" ]; then chmod 600 "$ROOT/config.json"; fi
 python3 "$ROOT/lite.py" selftest
 exec python3 "$ROOT/tools/install.py"

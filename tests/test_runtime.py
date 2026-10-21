@@ -96,7 +96,8 @@ class InstallerTests(unittest.TestCase):
                 (root / "web").mkdir()
                 (root / "web" / "index.html").write_text('<html data-app="moonuestc-openwrt">')
                 (root / "run.sh").touch()
-                (root / "config.json").write_text(json.dumps({"run_at": "21:01", "automation_enabled": False}))
+                (root / "config.json").write_text(json.dumps({"run_at": "21:01", "automation_enabled": False,
+                    "student_id": "2099999999999", "password": "Synthetic-Only"}))
                 old = "0 4 * * * /usr/bin/other-job\n0 22 * * * /old/run.sh # uestc-night-checkin-lite\n"
                 installed = []
 
@@ -107,17 +108,19 @@ class InstallerTests(unittest.TestCase):
                         if not ready:
                             raise subprocess.CalledProcessError(2, argv)
                         target = Path(argv[argv.index("--status-path") + 1])
+                        target.parent.mkdir(parents=True, exist_ok=True)
                         target.write_text(json.dumps({"lastRun": {"result": "dry_run_ready"}}))
                     if argv[0] == "crontab":
-                        installed.append(Path(argv[1]).read_text())
+                        installed.append(kwargs["input"])
                     return subprocess.CompletedProcess(argv, 0)
 
                 original_exists = Path.exists
 
                 def exists(path):
-                    return str(path) == str(Path("/etc/init.d/uhttpd")) or original_exists(path)
+                    return str(path) in {str(Path("/etc/init.d/uhttpd")), str(Path("/etc/init.d/rpcd"))} or original_exists(path)
 
                 with patch.object(installer, "ROOT", root), patch.object(installer, "WEB", root / "www"), \
+                     patch.object(installer, "CGI", root / "cgi-bin" / "moonuestc-api"), \
                      patch.object(installer.subprocess, "run", side_effect=run), \
                      patch.object(Path, "exists", exists), contextlib.redirect_stdout(io.StringIO()):
                     if ready:
@@ -126,13 +129,53 @@ class InstallerTests(unittest.TestCase):
                         with self.assertRaises(subprocess.CalledProcessError):
                             installer.main()
                 config = json.loads((root / "config.json").read_text())
-                self.assertIs(config["automation_enabled"], ready)
+                self.assertIs(config["automation_enabled"], False)
                 if ready:
                     self.assertIn("0 4 * * * /usr/bin/other-job\n", installed[0])
-                    self.assertIn("1 21 * * *", installed[0])
+                    self.assertNotIn("# moonuestc-openwrt", installed[0])
                     self.assertNotIn("/old/run.sh", installed[0])
+                    self.assertFalse(json.loads((root / "profiles" / "me.json").read_text())["automation_enabled"])
+                    cgi = (root / "cgi-bin" / "moonuestc-api").read_text()
+                    self.assertIn(repr(str(root)), cgi)
+                    self.assertIn("from account_api import cgi_main", cgi)
                 else:
                     self.assertEqual(installed, [])
+
+    def test_upgrade_preserves_profiles_and_does_not_request_school(self):
+        import account_store
+        with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
+            root = Path(directory)
+            (root / "web").mkdir()
+            (root / "web" / "index.html").write_text('<html data-app="moonuestc-openwrt">')
+            (root / "run.sh").touch()
+            profile = {"id": "me", "label": "Synthetic", "student_id": "2099999999999",
+                       "run_at": "21:01", "automation_enabled": True}
+            account_store.atomic_json(root / "profiles" / "index.json", ["me"])
+            account_store.atomic_json(root / "profiles" / "me.json", profile)
+            account_store.atomic_json(root / "state" / "sentinel.json", {"keep": True})
+            calls = []
+
+            def run(argv, **kwargs):
+                calls.append((argv, kwargs))
+                self.assertNotIn("prepare", argv)
+                if argv == ["crontab", "-l"]:
+                    return subprocess.CompletedProcess(argv, 0, "0 5 * * * unrelated\n", "")
+                return subprocess.CompletedProcess(argv, 0)
+
+            exists = Path.exists
+            def available(path):
+                return str(path) in {str(Path("/etc/init.d/uhttpd")), str(Path("/etc/init.d/rpcd"))} or exists(path)
+
+            with patch.object(installer, "ROOT", root), patch.object(installer, "WEB", root / "www"), \
+                 patch.object(installer, "CGI", root / "cgi-bin" / "moonuestc-api"), \
+                 patch.object(installer.subprocess, "run", side_effect=run), \
+                 patch.object(Path, "exists", available), contextlib.redirect_stdout(io.StringIO()):
+                installer.main()
+            self.assertEqual(json.loads((root / "profiles" / "me.json").read_text()), profile)
+            self.assertEqual(json.loads((root / "state" / "sentinel.json").read_text()), {"keep": True})
+            cron = next(kwargs["input"] for argv, kwargs in calls if argv == ["crontab", "-"])
+            self.assertIn("1 21 * * *", cron)
+            self.assertIn("0 5 * * * unrelated", cron)
 
 
 if __name__ == "__main__":
