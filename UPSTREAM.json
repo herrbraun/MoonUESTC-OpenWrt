@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/horoscope963852/MoonUESTC",
+  "commit": "69ebe71f49ee0dc4bf72a76fd48b8d0b7648d64d",
+  "version": "0.5.1",
+  "vendored_files_unchanged": true,
+  "sha256": {
+    "vendor/moonuestc/__init__.py": "0851c43115ce1fd4a9c9bfde61d8c0a26268463b912c884bc50c1c59c638f8be",
+    "vendor/moonuestc/client.py": "fd679da4c430259bbc0220714312a228010923149dbdec5b0feb7450ad08a04e",
+    "vendor/moonuestc/coordinates.py": "46dc66a9c4defc18b67ed0ba26eb8e8b50e2fce31005501f42da6fbdb674522b",
+    "vendor/moonuestc/diagnostics.py": "2df5d4a1905cb7c84f3c51525960c791817a4bc15386f9224f219e38629e9e05",
+    "vendor/moonuestc/errors.py": "be8198d10a52a4e7d4b9919ad97868be5bca5eccf8b938118b7f2f89f8b6d531",
+    "vendor/moonuestc/locations.py": "bcbf84c72a9e9ca284dd7ce22603677e436b4a2b52667e60a9b6a82bb183de1a",
+    "vendor/moonuestc/policy.py": "b180a08be8c844a8ac9c995573874f779d1a2ca2948165cb93d760aa7389b51a",
+    "vendor/moonuestc/runner.py": "19599471d70eef538bb33bae4f3b7ccca0eaa61c42ecb80e6b51827dec38e494",
+    "vendor/moonuestc/state.py": "f45d45c5662abc9f6e98e17ceff7e59173dbead81a278759a152716e11533f63",
+    "vendor/moonuestc/transport.py": "e1379585a6aa33b5051393c681ce2c92e65d7f534486b7d40f0201414e5df8e1"
+  },
+  "local_additions": [
+    "lite.py",
+    "run.sh",
+    "install.sh",
+    "tools/install.py",
+    "web/index.html",
+    "tests/"
+  ]
+}

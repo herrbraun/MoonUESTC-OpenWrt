@@ -1,0 +1,14 @@
+config.json
+state/
+backups/
+*.log
+*.lwp
+*.sqlite3*
+*.key
+*.dpapi
+*.har
+*.tmp
+__pycache__/
+*.py[cod]
+.venv/
+public-status.json

@@ -1,0 +1,17 @@
+{
+  "id": "me",
+  "student_id": "",
+  "password": "",
+  "browser_fingerprint": "",
+  "run_at": "21:01",
+  "automation_enabled": false,
+  "location_radius_meter": null,
+  "location": {
+    "mode": "fixed",
+    "name": "自定义地点",
+    "latitude": null,
+    "longitude": null,
+    "coordinate_system": "gcj02",
+    "reverse_geocode": ""
+  }
+}
