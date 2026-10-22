@@ -115,7 +115,7 @@ class LocalServerTests(unittest.TestCase):
         status, value = self.post({'action':'save','account':self.fields()})
         self.assertEqual(status,200)
         aid = value['account']['id']
-        raw = self.store.path(aid).read_text()
+        raw = self.store.path(aid).read_text(encoding="utf-8")
         self.assertNotIn('Synthetic-Only-Password', raw)
         self.assertNotIn('a'*32, raw)
         self.assertIn('dpapi:v1:', raw)
@@ -123,7 +123,7 @@ class LocalServerTests(unittest.TestCase):
         with patch.object(lite, 'DirectTransport') as transport, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(multi.run_profile(self.store, aid, 'scheduled'), 0)
             transport.assert_not_called()
-        self.assertEqual(json.loads(self.store.status_path(aid).read_text())['lastRun']['reason'], 'automation_disabled')
+        self.assertEqual(json.loads(self.store.status_path(aid).read_text(encoding="utf-8"))['lastRun']['reason'], 'automation_disabled')
         status, value = self.post({'action':'get','id':aid})
         self.assertNotIn('password',value['account'])
         self.assertNotIn('browser_fingerprint',value['account'])
@@ -155,7 +155,7 @@ class TaskEntryTests(unittest.TestCase):
             with patch.object(run_task, 'HERE', root), patch.object(run_task.multi, 'main', side_effect=worker):
                 self.assertEqual(run_task.main(), 0)
             self.assertIs(sys.argv, original)
-            self.assertEqual((root/'runtime'/'last-run.log').read_text().strip(), 'Synthetic event')
+            self.assertEqual((root/'runtime'/'last-run.log').read_text(encoding="utf-8").strip(), 'Synthetic event')
             self.assertEqual(list((root/'runtime').glob('task-*.log')), [])
 
     def test_exception_text_never_enters_task_log(self):
@@ -163,7 +163,7 @@ class TaskEntryTests(unittest.TestCase):
             root = Path(directory)
             with patch.object(run_task, 'HERE', root), patch.object(run_task.multi, 'main', side_effect=RuntimeError('Synthetic-Secret-Never-Log')):
                 self.assertEqual(run_task.main(), 2)
-            raw = (root/'runtime'/'last-run.log').read_text()
+            raw = (root/'runtime'/'last-run.log').read_text(encoding="utf-8")
             self.assertNotIn('Synthetic-Secret-Never-Log', raw)
             self.assertIn('local_runtime_error', raw)
 
