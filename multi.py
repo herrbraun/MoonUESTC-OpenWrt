@@ -65,7 +65,7 @@ def run_profile(store, aid, mode):
 def clear_busy(store, aid):
     path = store.status_path(aid)
     try:
-        state = json.loads(path.read_text())
+        state = json.loads(path.read_text(encoding="utf-8"))
         if state.pop("busy", None):
             atomic_json(path, state, 0o644)
     except (OSError, ValueError):

@@ -129,14 +129,14 @@ class InstallerTests(unittest.TestCase):
                     else:
                         with self.assertRaises(subprocess.CalledProcessError):
                             installer.main()
-                config = json.loads((root / "config.json").read_text())
+                config = json.loads((root / "config.json").read_text(encoding="utf-8"))
                 self.assertIs(config["automation_enabled"], False)
                 if ready:
                     self.assertIn("0 4 * * * /usr/bin/other-job\n", installed[0])
                     self.assertNotIn("# moonuestc-openwrt", installed[0])
                     self.assertNotIn("/old/run.sh", installed[0])
-                    self.assertFalse(json.loads((root / "profiles" / "me.json").read_text())["automation_enabled"])
-                    cgi = (root / "cgi-bin" / "moonuestc-api").read_text()
+                    self.assertFalse(json.loads((root / "profiles" / "me.json").read_text(encoding="utf-8"))["automation_enabled"])
+                    cgi = (root / "cgi-bin" / "moonuestc-api").read_text(encoding="utf-8")
                     self.assertIn(repr(str(root)), cgi)
                     self.assertIn("from account_api import cgi_main", cgi)
                 else:
@@ -173,8 +173,8 @@ class InstallerTests(unittest.TestCase):
                  patch.object(installer.subprocess, "run", side_effect=run), \
                  patch.object(Path, "exists", available), contextlib.redirect_stdout(io.StringIO()):
                 installer.main()
-            self.assertEqual(json.loads((root / "profiles" / "me.json").read_text()), profile)
-            self.assertEqual(json.loads((root / "state" / "sentinel.json").read_text()), {"keep": True})
+            self.assertEqual(json.loads((root / "profiles" / "me.json").read_text(encoding="utf-8")), profile)
+            self.assertEqual(json.loads((root / "state" / "sentinel.json").read_text(encoding="utf-8")), {"keep": True})
             cron = next(kwargs["input"] for argv, kwargs in calls if argv == ["crontab", "-"])
             self.assertIn("1 21 * * *", cron)
             self.assertIn("0 5 * * * unrelated", cron)
