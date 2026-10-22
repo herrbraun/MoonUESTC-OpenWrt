@@ -1,5 +1,6 @@
 """Local management operations; no school submission endpoint."""
 import json
+import os
 import subprocess
 import sys
 import time
@@ -34,7 +35,7 @@ def dispatch(fields, store):
             try:
                 subprocess.Popen([sys.executable, str(store.root / "multi.py"), "diagnose", "--account", aid],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    close_fds=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                    close_fds=True, start_new_session=os.name != "nt", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             except OSError:
                 state.pop("busy", None)
                 atomic_json(path, state, 0o644)

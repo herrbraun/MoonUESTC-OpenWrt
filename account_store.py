@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "vendor"))
 from moonuestc.state import execution_lock
 from secret_store import protect_account, read_account
-from windows_schedule import sync_schedule
+from linux_schedule import sync_schedule
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 
@@ -110,7 +110,7 @@ class AccountStore:
             source = self.get(aid)
         else:
             sources = self.all()
-            source = {"run_at": "21:01", "automation_enabled": True,
+            source = {"run_at": "21:01", "automation_enabled": False,
                       "location": copy.deepcopy((sources[0] if sources else {}).get("location", {}))}
         return {key: source.get(key) for key in ("id", "label", "student_id", "run_at", "automation_enabled", "location")} | {
             "password_saved": bool(source.get("password")),
@@ -172,7 +172,7 @@ class AccountStore:
                     self.write_profile(aid, old)
                 else:
                     self.path(aid).unlink(missing_ok=True)
-                raise StoreError("Windows 定时任务保存失败，修改已撤回", 500) from None
+                raise StoreError("定时任务保存失败，修改已撤回", 500) from None
             status = self.status_path(aid)
             snapshot = json.loads(status.read_text(encoding="utf-8")) if status.exists() else {"schema": 1, "history": []}
             if old and old["student_id"] != account["student_id"]:

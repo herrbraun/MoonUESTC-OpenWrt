@@ -12,7 +12,7 @@ from account_store import AccountStore, StoreError
 from account_api import dispatch
 from moonuestc.errors import ToolError
 from moonuestc.state import execution_lock
-from tools.install_windows import protect_directories
+from tools.install_platform import protect_directories
 
 HERE = Path(__file__).resolve().parent
 
@@ -53,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {"ok":False,"message":"访问地址不匹配"})
         if self.path == "/":
             return self.reply(200, (HERE / "web" / "index.html").read_bytes(), "text/html; charset=utf-8")
+        if self.path == "/platform.js":
+            return self.reply(200, (HERE / "web" / "platform.js").read_bytes(), "application/javascript; charset=utf-8")
         if self.path == "/accounts.json" or re.fullmatch(r"/status-[a-zA-Z0-9_-]{1,32}\.json", self.path):
             path = self.server.store.public / self.path[1:]
             if path.is_file():
@@ -91,6 +93,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--print-url", action="store_true", help="Print a private launch URL for an SSH tunnel")
     args = parser.parse_args()
     protect_directories(HERE)
     store = AccountStore()
@@ -98,6 +101,8 @@ def main():
         store.migrate()
         store.publish()
     with LocalServer(store, args.port) as server:
+        if args.print_url:
+            print(server.origin + "/#key=" + server.access_key, flush=True)
         print("管理页：" + server.origin + "；关闭本窗口结束管理页，系统定时任务继续生效。", flush=True)
         if not args.no_browser:
             webbrowser.open(server.origin + "/#key=" + server.access_key)

@@ -1,3 +1,2 @@
 * text=auto eol=lf
 vendor/** -text
-*.cmd text eol=crlf

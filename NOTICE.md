@@ -1,6 +1,6 @@
 # 来源与许可
 
-本项目由 Alexander-001 整理为 Windows 轻量版本，基于：
+本项目由 Alexander-001 整理为 Linux 轻量版本，基于：
 
 - [MoonUESTC](https://github.com/horoscope963852/MoonUESTC)，提交 `69ebe71f49ee0dc4bf72a76fd48b8d0b7648d64d`，MIT。`vendor/moonuestc/` 中十个文件按原样保留；版权属于原作者。
 - 上游引用 [GoodNight](https://github.com/beichenO2/GoodNight) 的状态确认与提交结果处理思路，保留其 MIT 声明。

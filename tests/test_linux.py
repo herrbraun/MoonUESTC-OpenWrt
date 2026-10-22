@@ -1,4 +1,4 @@
-"""Windows DPAPI, native task XML and real loopback HTTP; synthetic accounts only."""
+"""POSIX permissions, systemd units and real loopback HTTP; synthetic accounts only."""
 import contextlib
 import datetime as dt
 import io
@@ -18,55 +18,74 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from account_store import AccountStore, atomic_json
 from desktop import LocalServer
-from secret_store import read_account, protect_account
-import windows_schedule as schedule
+from tools.install_platform import protect_directories
+import linux_schedule as schedule
 import run_task
 import multi
 import lite
 
 
 class ScheduleTests(unittest.TestCase):
-    def test_task_xml_uses_beijing_time_current_user_and_hidden_single_run(self):
-        accounts = [dict(run_at=t, automation_enabled=on) for t, on in
-                    [('21:01', True), ('21:01', True), ('22:03', True), ('23:04', False)]]
-        root = ROOT / "包含 空格 & 符号"
-        tree = ET.fromstring(schedule.render_xml(accounts, root, date=dt.date(2026,10,22)))
-        ns = {'t':schedule.NS}
-        boundaries = [n.text for n in tree.findall('.//t:StartBoundary', ns)]
-        self.assertEqual(boundaries, ['2026-10-22T21:01:00+08:00','2026-10-22T22:03:00+08:00'])
-        self.assertEqual(tree.find('.//t:LogonType', ns).text, 'InteractiveToken')
-        self.assertEqual(tree.find('.//t:RunLevel', ns).text, 'LeastPrivilege')
-        self.assertEqual(tree.find('.//t:MultipleInstancesPolicy', ns).text, 'Parallel')
-        self.assertEqual(tree.find('.//t:WorkingDirectory', ns).text, str(root.resolve()))
-        self.assertEqual(tree.find('.//t:Arguments', ns).text, subprocess.list2cmdline([str(root.resolve()/'run_task.py')]))
-        self.assertNotIn('desktop.py', ET.tostring(tree, encoding='unicode'))
+    def test_distinct_slot_services_and_beijing_calendars(self):
+        accounts = [dict(run_at=t,automation_enabled=on) for t,on in
+                    [('21:01',True),('21:01',True),('22:03',True),('23:04',False)]]
+        units = schedule.render_units(accounts, ROOT / 'space & percent% dollar$', python='/usr/bin/python3')
+        self.assertEqual(len(units),4)
+        timers = [value for name,value in units.items() if name.endswith('.timer')]
+        self.assertTrue(any('21:01:00 Asia/Shanghai' in value for value in timers))
+        self.assertTrue(any('22:03:00 Asia/Shanghai' in value for value in timers))
+        services = [value for name,value in units.items() if name.endswith('.service')]
+        self.assertTrue(all('Type=oneshot' in value and 'UMask=0077' in value for value in services))
+        self.assertTrue(all('%%' in value and '$$' in value for value in services))
+        self.assertTrue(all('Persistent=false' in value for value in timers))
 
-    def test_unique_install_names_and_disable_removes_only_owned_task(self):
-        self.assertNotEqual(schedule.identity(ROOT), schedule.identity(ROOT / 'other'))
-        with patch.object(schedule, 'apply_xml') as apply:
-            schedule.sync_schedule([{'automation_enabled':False}], ROOT)
-        apply.assert_called_once_with(ROOT, None)
-        self.assertIn('Task name belongs to another application', schedule.SCRIPT)
-
-    def test_powershell_receives_xml_as_data_and_cleans_temporary_file(self):
+    def test_empty_install_needs_no_user_bus(self):
         with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
-            root = Path(directory)
-            def run(argv, **kwargs):
-                self.assertEqual(argv[-1], schedule.SCRIPT)
-                env = kwargs['env']
-                self.assertTrue(Path(env['MOON_TASK_XML']).is_file())
-                self.assertEqual(env['MOON_TASK_NAME'], schedule.identity(root)[0])
-                self.assertNotIn(str(root), argv[-1])
-                return subprocess.CompletedProcess(argv, 0)
-            with patch.object(schedule.subprocess, 'run', side_effect=run):
-                schedule.apply_xml(root, schedule.render_xml([{'run_at':'21:01','automation_enabled':True}], root))
-            self.assertEqual(list((root/'runtime').glob('*.xml')), [])
+            with patch.object(schedule,'run_systemctl') as call:
+                schedule.sync_schedule([],Path(directory),Path(directory)/'units')
+            call.assert_not_called()
 
-    def test_task_failure_is_reported(self):
+    def test_updates_preserve_unrelated_units_and_running_services(self):
         with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
-            with patch.object(schedule.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
-                with self.assertRaises(OSError):
-                    schedule.apply_xml(Path(directory), None)
+            root=Path(directory);units=root/'units';units.mkdir()
+            other=units/'unrelated.timer';other.write_text('unchanged')
+            calls=[]
+            def run(args,check=True):
+                calls.append(args)
+                return subprocess.CompletedProcess(args,0)
+            with patch.object(schedule,'run_systemctl',side_effect=run):
+                schedule.sync_schedule([dict(run_at='21:01',automation_enabled=True)],root,units)
+                schedule.sync_schedule([dict(run_at='22:03',automation_enabled=True)],root,units)
+                self.assertTrue(any(p.name.endswith('2203.timer') for p in units.iterdir()))
+                self.assertFalse(any(p.name.endswith('2101.timer') for p in units.iterdir()))
+                schedule.sync_schedule([],root,units)
+            self.assertEqual(list(units.iterdir()),[other])
+            self.assertEqual(other.read_text(),'unchanged')
+            self.assertFalse(any(args[0]=='stop' and any(a.endswith('.service') for a in args) for args in calls))
+
+    def test_failed_update_restores_previous_units(self):
+        with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
+            root=Path(directory);units=root/'units'
+            def ok(args,check=True): return subprocess.CompletedProcess(args,0)
+            with patch.object(schedule,'run_systemctl',side_effect=ok):
+                schedule.sync_schedule([dict(run_at='21:01',automation_enabled=True)],root,units)
+            previous={p.name:p.read_text() for p in units.iterdir()}
+            failed=[]
+            def run(args,check=True):
+                if args[:2]==['enable','--now'] and not failed:
+                    failed.append(True);raise OSError('synthetic')
+                return subprocess.CompletedProcess(args,0)
+            with patch.object(schedule,'run_systemctl',side_effect=run),self.assertRaises(OSError):
+                schedule.sync_schedule([dict(run_at='22:03',automation_enabled=True)],root,units)
+            self.assertEqual({p.name:p.read_text() for p in units.iterdir()},previous)
+
+    def test_unowned_unit_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
+            root=Path(directory);units=root/'units';units.mkdir()
+            target=units/(schedule.identity(root)[0]+'2101.timer');target.write_text('unrelated owner')
+            with patch.object(schedule,'run_systemctl') as call,self.assertRaises(OSError):
+                schedule.sync_schedule([dict(run_at='21:01',automation_enabled=True)],root,units)
+            call.assert_not_called();self.assertEqual(target.read_text(),'unrelated owner')
 
 
 class LocalServerTests(unittest.TestCase):
@@ -111,14 +130,13 @@ class LocalServerTests(unittest.TestCase):
             with self.subTest(headers=headers):
                 self.assertEqual(self.post({'action':'get'}, **headers)[0], status)
 
-    def test_real_crud_dto_and_dpapi_at_rest(self):
+    def test_real_crud_dto_and_private_profiles(self):
         status, value = self.post({'action':'save','account':self.fields()})
         self.assertEqual(status,200)
         aid = value['account']['id']
         raw = self.store.path(aid).read_text()
-        self.assertNotIn('Synthetic-Only-Password', raw)
-        self.assertNotIn('a'*32, raw)
-        self.assertIn('dpapi:v1:', raw)
+        if __import__('os').name == 'posix':
+            self.assertEqual(__import__('stat').S_IMODE(self.store.path(aid).stat().st_mode),0o600)
         self.assertEqual(self.store.get(aid)['password'], self.fields()['password'])
         with patch.object(lite, 'DirectTransport') as transport, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(multi.run_profile(self.store, aid, 'scheduled'), 0)
