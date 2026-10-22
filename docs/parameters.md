@@ -35,7 +35,7 @@
 
 ```powershell
 # Windows PowerShell
-& .\.venv\Scripts\python.exe lite.py locations --config .\profiles\账号ID.json
+& .\.venv\Scripts\python.exe -X utf8 lite.py locations --config .\profiles\账号ID.json
 ```
 
 ```sh
