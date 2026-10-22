@@ -20,10 +20,16 @@
     "multi.py",
     "account_store.py",
     "account_api.py",
-    "run.sh",
-    "install.sh",
-    "tools/install.py",
+    "desktop.py",
+    "secret_store.py",
+    "windows_schedule.py",
+    "run_task.py",
+    "tools/install_windows.py",
     "web/index.html",
+    "安装.cmd",
+    "启动管理页.cmd",
+    "移除定时任务.cmd",
     "tests/"
-  ]
+  ],
+  "platform": "windows"
 }

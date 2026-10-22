@@ -6,17 +6,14 @@ import os
 from pathlib import Path
 import re
 import secrets
-import shlex
-import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "vendor"))
 from moonuestc.state import execution_lock
-from moonuestc.policy import clock_minutes
+from secret_store import protect_account, read_account
+from windows_schedule import sync_schedule
 
-MARKER = "# moonuestc-openwrt"
-LEGACY_MARKER = "# uestc-night-checkin-lite"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 
 
@@ -39,33 +36,13 @@ def atomic_json(path, value, mode=0o600):
     os.replace(temp, path)
 
 
-def cron_text(previous, accounts, root=HERE):
-    root = Path(root)
-    if re.search(r"[\r\n%]", root.as_posix()):
-        raise StoreError("安装路径不能包含换行或百分号")
-    lines = [line for line in previous.splitlines() if not line.rstrip().endswith((MARKER, LEGACY_MARKER))]
-    times = sorted({a.get("run_at", "21:01") for a in accounts if a.get("automation_enabled") is True})
-    for value in times:
-        total = clock_minutes(value)
-        hour, minute = divmod(total, 60)
-        lines.append(f"{minute} {hour} * * * {shlex.quote(root.as_posix() + '/run.sh')} {MARKER}")
-    return "\n".join(lines) + ("\n" if lines else "")
-
-
-def install_cron(accounts, root=HERE):
-    result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
-    if result.returncode not in (0, 1):
-        raise StoreError("无法读取定时任务", 500)
-    content = cron_text(result.stdout, accounts, root)
-    subprocess.run(["crontab", "-"], input=content, text=True, check=True, capture_output=True)
-
-
 class AccountStore:
-    def __init__(self, root=HERE, public=Path("/www/moonuestc"), cron_callback=None):
-        self.root, self.public = Path(root), Path(public)
+    def __init__(self, root=HERE, public=None, schedule_callback=None):
+        self.root = Path(root)
+        self.public = Path(public) if public is not None else self.root / "runtime" / "public"
         self.profiles = self.root / "profiles"
         self.index = self.profiles / "index.json"
-        self.cron_callback = cron_callback if cron_callback is not None else lambda accounts: install_cron(accounts, self.root)
+        self.schedule_callback = schedule_callback if schedule_callback is not None else lambda accounts: sync_schedule(accounts, self.root)
 
     @staticmethod
     def valid_id(value):
@@ -85,7 +62,7 @@ class AccountStore:
     def get(self, aid):
         if aid not in self.ids():
             raise StoreError("账号不存在", 404)
-        return json.loads(self.path(aid).read_text(encoding="utf-8"))
+        return read_account(self.path(aid))
 
     def all(self):
         return [self.get(aid) for aid in self.ids()]
@@ -102,12 +79,15 @@ class AccountStore:
         original.setdefault("label", "我的账号")
         original.setdefault("run_at", "21:01")
         original.setdefault("automation_enabled", False)
-        atomic_json(self.path("me"), original)
+        self.write_profile("me", original)
         atomic_json(self.index, ["me"])
         old = self.public / "status.json"
         if old.exists():
             atomic_json(self.status_path("me"), json.loads(old.read_text(encoding="utf-8")), 0o644)
         self.publish()
+
+    def write_profile(self, aid, account):
+        atomic_json(self.path(aid), protect_account(account))
 
     def status_path(self, aid):
         self.path(aid)
@@ -182,17 +162,17 @@ class AccountStore:
             previous_ids = list(ids)
             if old is None:
                 ids.append(aid)
-            atomic_json(self.path(aid), account)
+            self.write_profile(aid, account)
             atomic_json(self.index, ids)
             try:
-                self.cron_callback(self.all())
+                self.schedule_callback(self.all())
             except Exception:
                 atomic_json(self.index, previous_ids)
                 if old:
-                    atomic_json(self.path(aid), old)
+                    self.write_profile(aid, old)
                 else:
                     self.path(aid).unlink(missing_ok=True)
-                raise StoreError("定时任务保存失败，修改已撤回", 500) from None
+                raise StoreError("Windows 定时任务保存失败，修改已撤回", 500) from None
             status = self.status_path(aid)
             snapshot = json.loads(status.read_text(encoding="utf-8")) if status.exists() else {"schema": 1, "history": []}
             if old and old["student_id"] != account["student_id"]:
@@ -211,7 +191,7 @@ class AccountStore:
             ids = self.ids()
             remaining = [item for item in ids if item != aid]
             accounts = [self.get(item) for item in remaining]
-            self.cron_callback(accounts)
+            self.schedule_callback(accounts)
             atomic_json(self.index, remaining)
             self.path(aid).unlink()
             self.status_path(aid).unlink(missing_ok=True)

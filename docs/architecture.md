@@ -1,26 +1,25 @@
-# 结构与调度
+# Windows 轻量版结构
 
-`vendor/moonuestc/` 的十个模块保留上游认证、位置检查、提交声明、SQLite 状态和回读逻辑，校验值见 `UPSTREAM.json`。本项目只增加运行入口、账号存储、静态页面和路由器集成。
-
-| 文件或目录 | 职责 |
+| 组件 | 职责 |
 | --- | --- |
-| `lite.py` | 单账号执行；真实提交必须显式 `--submit`，`scheduled` 先检查暂停开关 |
-| `multi.py` | 单进程顺序执行，账号间隔 20 秒，一个账号失败后继续 |
-| `account_store.py` | 私有账号 CRUD、迁移、过滤公开索引、更新 cron |
-| `account_api.py` | 按需 CGI，复用 rpcd 管理会话 |
-| `profiles/` | 私有账号文件及索引，安装后作为配置来源 |
-| `state/` | 既有 Cookie、SQLite 每日提交保护；按学号及认证资料隔离 |
-| `scheduler/` | 配置编辑与任务共用的执行锁 |
-| `web/index.html` | 唯一网页源文件，无框架或外链 |
+| `vendor/moonuestc/` | 十个原样保留的认证、位置检查、提交保护及回读模块 |
+| `lite.py` / `multi.py` | 单次执行、多账号隔离、暂停保护及顺序调度 |
+| `windows_schedule.py` | 每安装目录一个原生 Windows 任务，合并启用时间 |
+| `run_task.py` | 隐藏执行入口，任务结束退出，覆盖写入最近日志 |
+| `desktop.py` | 按需开启的本机 HTTP 管理页，不作为服务安装 |
+| `account_api.py` | 已认证请求的账号增删改与只读检查 |
+| `secret_store.py` | 当前用户 DPAPI，密码与指纹磁盘加密 |
+| `account_store.py` | 私有账号文件、脱敏公开数据、计划更新与回滚 |
+| `tools/install_windows.py` | 初始化仅用户、SYSTEM、管理员可访问的私有目录 |
 
-`run.sh` 调用 `multi.py checkin --due --submit`。cron 为每个启用的时间保留一条任务，同分钟的账号合并执行。进程记录启动分钟，再等待调度锁；拿锁后读取配置，选择该分钟仍启用的账号，通过 `lite.py scheduled` 再次检查暂停开关。相邻批次最多等待 1800 秒，避免锁忙时直接漏跑。手动检查最多等待 5 秒。
+任务 XML 为每个启用时间生成一个 CalendarTrigger，使用 `+08:00`，同一时刻去重。任务采用 InteractiveToken、LeastPrivilege，运行 `pythonw.exe run_task.py`，不保存 Windows 登录密码。系统设置 Parallel，先按触发时刻启动批次，再由应用调度锁串行处理，以保留各批启动分钟；不自动重试或补跑错过的任务。
 
-配置编辑同时获取调度锁和状态锁。保存失败会撤回配置；cron 只替换本项目及旧版的标记条目。旧配置迁移为 `me`，保留原启用状态、执行时间、公开历史、Cookie 和提交保护。更换学号会清空该账号公开历史，更换认证资料会清除旧认证提示。删除账号保留私有状态中的提交保护，重新添加同一学号也不会绕过当日声明。
+`run_task.py` 调用 `multi.py checkin --due --submit`。进程先记录启动分钟，拿调度锁后读取仍启用的账号，再调用 `scheduled` 暂停保护。账号间隔 20 秒，单账号失败继续后续账号。共享 SQLite 和 Cookie 按学号及认证资料隔离，上游每日提交保护及不明确结果回读保留。
 
-uhttpd 提供 `/moonuestc/index.html`、`accounts.json` 和 `status-<id>.json`。公开索引仅包含名称、脱敏学号、计划、启用状态和地点名，状态仅保留允许的字段。刷新只读本地缓存。
+保存或删除账号时更新本安装目录的系统任务；保存任务失败会撤回账号修改。任务名称和所有权标记来自程序目录摘要，更新和删除前核对所有权。计划文件通过临时 XML 和环境变量交给固定 PowerShell 脚本，路径不拼接为 PowerShell 代码。
 
-`/cgi-bin/moonuestc-api` 提供 `session`、`login`、`logout`、`get`、`save`、`delete`、`diagnose`；协议见 [API.md](API.md)。CGI 每次请求启动 Python 后退出。`diagnose` 启动一个后台单次只读任务，结束后退出，无签到提交接口。
+本机页面只允许 `127.0.0.1` 访问。每次启动产生新随机密钥，使用 URL fragment 交给浏览器后从地址栏移除；请求在自定义头中携带密钥。服务同时验证 Host、Origin、JSON 和长度。文件访问白名单仅含网页及脱敏状态，不提供配置目录下载。
 
-认证通过本机 `http://127.0.0.1/ubus` 转接 rpcd，检查 `luci-base` 写权限。密码与可信指纹不回传；管理员才能取得用于编辑的完整学号。Cookie 使用 HttpOnly、SameSite=Strict；HTTPS 访问时增加 Secure。原版的应用用户管理与加密保险库没有移植。
+`POST /api` 仅接受 `get`、`save`、`delete`、`diagnose`，详见 [API.md](API.md)。诊断启动独立的短期只读进程，完成后退出；没有网页签到提交接口。页面和系统任务彼此独立。
 
-安装器固定使用 `/www/moonuestc` 和 `/www/cgi-bin/moonuestc-api`，运行目录由安装器本身的位置决定。拒绝覆盖未带本项目标记的网页或 CGI；升级已有账号时不请求学校，不改变计划开关。
+密码和浏览器指纹通过 Windows 当前用户 DPAPI 加密；Cookie、SQLite 和日志由 NTFS 私有目录保护。没有沿用上游完整后台的用户管理、队列服务或加密保险库。

@@ -1,56 +1,49 @@
-# MoonUESTC-OpenWrt
+# MoonUESTC · Windows 轻量版
 
-基于 [MoonUESTC](https://github.com/horoscope963852/MoonUESTC) 的 OpenWrt 低占用版本。Python 按任务启动，网页复用 uhttpd，管理操作使用按需 CGI，不增加常驻 Python 服务。
+同一仓库的两个分支：[main：OpenWrt](https://github.com/herrbraun/MoonUESTC-OpenWrt/tree/main) · [windows：Windows](https://github.com/herrbraun/MoonUESTC-OpenWrt/tree/windows)。两版复用相同的 MoonUESTC 认证、签到和回读核心。
 
-支持最多 20 个账号，分别配置地点、执行时间和启用状态。网页可切换账号、添加、编辑、删除，以及发起只读检查；管理操作使用路由器 root 管理密码解锁。
+Windows 版只依赖 **Python 标准库 + PyCryptodome**。系统任务按时启动 Python，执行后退出；管理页需要时才打开，关闭窗口即结束。没有 Flask、Docker、数据库服务、前端构建链或常驻托盘程序。
 
-## 与上游的区别
+## 使用
 
-| 部分 | 本版本 |
-| --- | --- |
-| 学校认证、范围及时段判断、提交和回读 | 十个上游模块原样保留 |
-| Flask 后台、注册、用户权限、Docker | 不包含 |
-| 调度 | OpenWrt cron；同一时间去重，多账号顺序执行，间隔 20 秒 |
-| 状态页 | 单个静态 HTML + 脱敏 JSON；刷新不访问学校 |
-| 管理认证 | 复用 rpcd 管理会话，Cookie 有效期 900 秒 |
-| 私密数据 | 配置、Cookie、数据库位于私有目录，文件权限 0600；没有原版加密保险库 |
+1. 安装 Python 3.10 或更新版本，下载本分支到当前 Windows 用户自己的文件夹。
+2. 双击 **安装.cmd**，创建本地虚拟环境、安装唯一的第三方依赖并初始化私有目录。安装不访问学校。
+3. 双击 **启动管理页.cmd**。浏览器自动打开本机页面，添加学校账号、可信浏览器指纹和位置。
+4. 保存启用的计划后，Windows 任务计划程序接管定时运行。可以关闭管理窗口。
 
-不绑定宿舍或路由器型号。已在 CR6608 / OpenWrt 24.10.8 验证登录、位置检查和多账号网页管理；首次真实签到尚未验证。
+默认每日北京时间 **21:01**，默认地点为欣苑组团，GCJ-02 纬度 `30.674521`、经度 `104.096295`，均可修改。最多 20 个账号，各自拥有计划和状态；相同时间合并触发，账号间隔 20 秒。
 
-## 安装
+可信浏览器指纹来自本人已完成验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑账号时密码、指纹留空表示保留。二次验证或验证码仍需本人处理。
 
-需要已启用 LuCI 的 OpenWrt，uhttpd 提供 `/cgi-bin` 和 `/ubus`，rpcd 允许 root 登录及 `luci-base` 写权限。当前认证桥接使用本机 HTTP 80 端口。运行前确认系统时间及 cron 时区为北京时间。
+管理页的“检查”只做登录和状态查询，不提交签到；页面刷新只读取本地缓存。成功以学校记录回读为准，提交结果不明确时不会盲目重发。配置坐标不是实时 GPS。
 
-将仓库文件放到路由器 `/root/MoonUESTC-OpenWrt`，在使用 opkg 的系统中执行：
+## 定时运行
 
-```sh
-opkg update
-opkg install python3-light python3-urllib python3-openssl python3-sqlite3 python3-logging python3-uuid python3-codecs python3-cryptodome
-cd /root/MoonUESTC-OpenWrt
-sh install.sh
+Windows 系统任务以当前用户权限运行，时间使用明确的 `+08:00` 偏移，不依赖电脑当前时区。电脑需要开机，且该用户仍处于登录状态；锁屏可以运行，注销或关机不能运行。睡眠唤醒取决于系统电源策略，错过的任务不会补交。
+
+在网页关闭账号计划可停用该账号，全部关闭会移除本安装目录的任务。**移除定时任务.cmd** 只删除本安装目录对应的任务，保留账号和历史；以后保存启用的计划可重新安装任务。移动程序目录前先移除旧任务，再从新目录运行安装。
+
+任务名称为 `MoonUESTC-Windows-<目录摘要>`，不会覆盖其他程序的任务。签到执行时隐藏窗口，日志写入 `runtime/last-run.log`，不需要管理页保持打开。
+
+## 数据与本机访问
+
+- 管理页仅绑定 `127.0.0.1`，使用本次启动的随机密钥，浏览器自动接收；不需要路由器密码或 Windows 密码。普通复制地址不会携带管理权限，重新打开时使用启动脚本。
+- `profiles/` 内的学校密码和指纹通过当前 Windows 用户的 DPAPI 加密；编辑接口不回传秘密。更换 Windows 用户或电脑后需要重新填写这些资料。
+- Cookie 和 SQLite 提交保护保存在 `state/`，使用 NTFS 私有目录权限保护。公开状态只包含脱敏学号和允许的结果字段。
+- `runtime/`、`profiles/`、`state/`、日志不进入 Git。不要复制 OpenWrt 的真实运行目录到仓库。
+
+旧 `config.json` 可迁移为 `me`，但原始文件仍可能含明文秘密；推荐直接使用本机网页录入。删除账号保留每日提交保护，重新添加同一学号不会绕过当日声明。
+
+## 开发与验证
+
+```powershell
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests
+node tests/check_ui.cjs
 ```
 
-访问 `http://路由器地址/moonuestc/`，点击“管理”输入路由器 root 管理密码，再添加账号。管理密码通过当前连接提交，建议使用已配置的 HTTPS 访问；仅在可信内网开放管理页。
+已通过本机 24 项测试、Windows 原生任务注册、NTFS 私有权限与浏览器检查；首次真实签到尚未验证。
 
-填写学校账号、密码、可信浏览器指纹，以及实际配置的 GCJ-02 位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑时密码、指纹留空表示保留。未配置位置时默认填入欣苑组团（GCJ-02：纬度 `30.674521`，经度 `104.096295`），可在“位置”中修改；已有位置保留。
+Python 测试仅在 Windows 上运行，使用合成账号；HTTP 测试只连接本机。网页测试需要 Chrome 和 Node.js，非默认 Chrome 路径用 `CHROME_PATH` 指定。测试不登录学校、不提交真实签到。
 
-如需先从命令行查询学校地点，可填写 `config.example.json` 的副本 `config.json`，执行 `python3 lite.py locations`。旧版 `config.json` 会在首次安装时只读校验并迁移为 `me`，保留原时间和启用状态；已有 `profiles/` 的升级不会重新迁移或重新登录学校。安装备份配置、原 cron 和网页，并保留其他 cron 条目。
-
-## 运行与停用
-
-安装后配置以 `profiles/<id>.json` 为准，旧 `config.json` 仅作迁移来源。网页关闭账号计划即可暂停，修改时间会同步更新 cron。账号名称、脱敏学号、计划和结果可被内网访客查看，秘密不进入公开状态文件。
-
-```sh
-python3 multi.py diagnose --account me    # 登录及状态查询，不提交
-python3 multi.py prepare --account me     # 位置和时段检查，不提交
-python3 multi.py checkin --account me --submit  # 手动提交并回读
-cat last-run.log                         # 最近一批定时任务日志
-```
-
-二次验证或验证码需要本人处理；配置坐标不是实时 GPS。每账号独立状态及最多八条摘要，共享 `state/` 按学号隔离 Cookie 和每日提交保护。成功以学校记录回读为准，结果不明确时不会盲目重发。删除账号不会删除这些提交保护记录。
-
-## 验证与来源
-
-开发机运行 `python -m pip install -r requirements.txt`，然后 `python -m unittest discover -s tests`。测试使用合成配置，不访问学校。可用 Chrome 和 Node.js 执行 `node tests/check_ui.cjs` 检查网页；非默认 Chrome 路径使用 `CHROME_PATH` 环境变量指定。
-
-[结构与调度](docs/architecture.md) · [管理 API](docs/API.md) · [上游版本与校验](UPSTREAM.json) · [来源声明](NOTICE.md) · [许可证](LICENSE)
+[结构与调度](docs/architecture.md) · [本机 API](docs/API.md) · [上游版本](UPSTREAM.json) · [来源声明](NOTICE.md) · [许可证](LICENSE)

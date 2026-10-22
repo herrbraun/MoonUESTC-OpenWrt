@@ -28,13 +28,14 @@ const server = http.createServer(async (req, res) => {
   else if (url.pathname.endsWith('/status-alt.json')) {
     await pause(150);
     value = {history:[],location:{name:'Synthetic B'}};
-  } else if (url.pathname === '/cgi-bin/moonuestc-api') {
+  } else if (url.pathname === '/api') {
     if (req.method === 'GET') value = {ok:true,authenticated:true};
     else {
       let body = '';
       for await (const part of req) body += part;
       const fields = JSON.parse(body);
       assert.equal(fields.action, 'get', 'Browser check must not write or submit');
+      assert.equal(req.headers['x-moonuestc-key'], 'synthetic-test-only');
       const account = accounts.find(a => a.id === fields.id);
       value = {ok:true,account:account ? {
         id:account.id,label:account.label,student_id:'2099999999999',
@@ -95,7 +96,10 @@ const server = http.createServer(async (req, res) => {
     };
     await rpc('Runtime.enable');
     await rpc('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
-    await rpc('Page.navigate',{url:base+'/moonuestc/'});
+    await rpc('Page.navigate',{url:base+'/moonuestc/#key=synthetic-test-only'});
+    await waitFor("document.getElementById('location')?.textContent==='Synthetic A'");
+    assert.equal(await evaluate("location.hash"),'');
+    await rpc('Page.reload');
     await waitFor("document.getElementById('location')?.textContent==='Synthetic A'");
     assert.equal(await evaluate("document.getElementById('window').textContent"),'尚未读取');
     await evaluate("document.getElementById('account-select').value='alt';document.getElementById('account-select').dispatchEvent(new Event('change'))");
@@ -121,7 +125,7 @@ const server = http.createServer(async (req, res) => {
     await waitFor("document.getElementById('account-dialog').open");
     assert.deepEqual(await evaluate("['location-name','latitude','longitude'].map(id=>document.getElementById(id).value)"),['欣苑组团','30.674521','104.096295']);
     assert.deepEqual(errors,[]);
-    assert.ok(requests.includes('/cgi-bin/moonuestc-api'));
+    assert.ok(requests.includes('/api'));
     console.log('Offline Chrome UI passed: account isolation, paused state, Xinyuan defaults and preserved custom coordinates, secret fields, desktop and 390px mobile.');
   } finally {
     if(ws) ws.close();

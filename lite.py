@@ -18,6 +18,7 @@ from moonuestc.policy import clock_minutes, now
 from moonuestc.runner import run_account
 from moonuestc.state import State, execution_lock
 from moonuestc.transport import NoRedirect, Transport
+from secret_store import read_account
 
 EVENTS = []
 STATUS_PATH = None
@@ -120,7 +121,7 @@ def main():
     if args.command in ("checkin", "scheduled") and not args.submit:
         raise ToolError("explicit_submit_flag_required", "local")
     try:
-        account = json.loads(args.config.read_text(encoding="utf-8-sig"))
+        account = read_account(args.config)
     except (OSError, ValueError):
         raise ToolError("account_configuration_missing", "config") from None
     if not isinstance(account, dict):

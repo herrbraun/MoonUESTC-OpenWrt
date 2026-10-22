@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from account_store import AccountStore, StoreError, atomic_json, cron_text
+from account_store import AccountStore, StoreError, atomic_json
 import account_api
 import multi
 
@@ -66,40 +66,17 @@ class AccountsTest(unittest.TestCase):
         self.assertNotIn("auth", state)
         self.assertEqual(len(state["history"]), 1)
 
-    def test_cron_deduplication_and_rollback(self):
-        previous = "0 5 * * * unrelated\n1 21 * * * old # uestc-night-checkin-lite\n"
-        other = self.fields(run_at="22:03")
-        text = cron_text(previous, [self.original, self.original, other, self.fields(automation_enabled=False)])
-        self.assertIn("0 5 * * * unrelated\n", text)
-        self.assertEqual(text.count("# moonuestc-openwrt"), 2)
-        self.assertNotIn("# uestc-night-checkin-lite", text)
-        self.assertIn("3 22 * * *", text)
-        self.assertEqual(cron_text(previous, []), "0 5 * * * unrelated\n")
+    def test_schedule_update_rollback(self):
         before = self.store.get("me")
         def fail(_):
             raise OSError("synthetic")
-        self.store.cron_callback = fail
+        self.store.schedule_callback = fail
         with self.assertRaises(StoreError):
             self.store.save(self.fields(id="me", label="changed"))
         self.assertEqual(self.store.get("me"), before)
         with self.assertRaises(StoreError):
             self.store.save(self.fields(student_id="209900000004"))
         self.assertEqual(self.store.ids(), ["me"])
-
-    def test_api_authorization_origin_and_cookie(self):
-        env = {"HTTP_HOST": "192.168.1.1", "HTTP_ORIGIN": "http://192.168.1.1",
-               "REQUEST_METHOD": "POST", "CONTENT_TYPE": "application/json"}
-        self.assertEqual(account_api.request_fields(env, b'{"action":"save"}')["action"], "save")
-        for key, value in [("HTTP_ORIGIN", "https://example.com"), ("CONTENT_TYPE", "text/plain")]:
-            with self.assertRaises(StoreError):
-                account_api.request_fields(env | {key: value}, b'{}')
-        with self.assertRaises(StoreError) as result:
-            account_api.dispatch({"action": "save", "account": self.fields()}, env, self.store, auth=lambda _: None)
-        self.assertEqual(result.exception.status, 401)
-        with patch.object(account_api, "rpc", return_value={"ubus_rpc_session": "a" * 32}):
-            _, cookie = account_api.dispatch({"action": "login", "password": "synthetic"}, env, self.store)
-        self.assertIn("HttpOnly; SameSite=Strict", cookie)
-        self.assertNotIn("synthetic", cookie)
 
     def test_runner_failure_does_not_skip_later_accounts(self):
         accounts = [{"id": "me"}, {"id": "other"}]
@@ -112,7 +89,7 @@ class AccountsTest(unittest.TestCase):
     def test_spawn_failure_clears_busy(self):
         with patch.object(account_api.subprocess, "Popen", side_effect=OSError("synthetic")):
             with self.assertRaises(StoreError):
-                account_api.dispatch({"action": "diagnose", "id": "me"}, {}, self.store, auth=lambda _: "a" * 32)
+                account_api.dispatch({"action": "diagnose", "id": "me"}, self.store)
         self.assertNotIn("busy", json.loads(self.store.status_path("me").read_text()))
 
     def test_nearby_schedule_waits_for_active_batch(self):
@@ -146,14 +123,6 @@ class AccountsTest(unittest.TestCase):
              patch.object(sys, "argv", ["multi.py", "checkin", "--due", "--submit"]):
             self.assertEqual(multi.main(), 0)
         self.assertEqual(run.call_args.args[1], [])
-
-    def test_cron_uses_install_root_and_replaces_both_markers(self):
-        previous = "1 21 * * * old # moonuestc-openwrt\n2 21 * * * older # uestc-night-checkin-lite\n0 5 * * * unrelated\n"
-        cron = cron_text(previous, [self.original], Path("/root/renamed-app"))
-        self.assertIn("/root/renamed-app/run.sh # moonuestc-openwrt", cron)
-        self.assertNotIn("older", cron)
-        self.assertEqual(cron.count("# moonuestc-openwrt"), 1)
-        self.assertIn("0 5 * * * unrelated", cron)
 
     def test_empty_install_does_not_require_a_legacy_account(self):
         store = AccountStore(self.root / "empty", self.public / "empty", lambda _: None)

@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 
 @contextlib.contextmanager
 def scheduler_lock(root, wait_seconds):
-    """A nearby cron slot waits for the current batch instead of losing its run."""
+    """A nearby scheduled batch waits for the current batch instead of losing its run."""
     deadline = time.monotonic() + wait_seconds
     while True:
         lock = execution_lock(root / "scheduler")

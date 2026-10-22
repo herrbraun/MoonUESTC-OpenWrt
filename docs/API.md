@@ -1,30 +1,18 @@
-# 管理 API
+# 本机管理 API
 
-入口为 `/cgi-bin/moonuestc-api`。管理客户端必须从路由器私有 IP 打开的同源网页访问。POST 要求 `Content-Type: application/json` 和匹配的 Origin；请求体上限 16384 字节。接口不提供真实签到操作。
+`POST /api` 仅在本次管理进程绑定的 `http://127.0.0.1:<随机端口>` 上可用。请求必须具有匹配的 Host、Origin、`Content-Type: application/json` 及 `X-MoonUESTC-Key` 启动密钥；请求体上限 16384 字节。密钥只在本次进程生命周期内有效，不需要路由器或 Windows 密码。
 
-| action | 输入 | 权限及结果 |
+| action | 输入 | 返回 |
 | --- | --- | --- |
-| `session` | 无；也可 GET `?action=session` | 返回 `authenticated`，不返回配置 |
-| `login` | 路由器 root 管理 `password` | rpcd 认证，设置 900 秒 Cookie |
-| `logout` | 无 | 销毁会话并清除 Cookie |
-| `get` | 可选账号 `id` | 管理认证；返回编辑字段及秘密已保存标志 |
-| `save` | `account` 对象 | 管理认证；新增或编辑，返回无秘密 DTO |
-| `delete` | 账号 `id` | 管理认证；删除账号及公开状态 |
-| `diagnose` | 账号 `id` | 管理认证；排队执行只读诊断，返回 `queued: true` |
+| `get` | 可选账号 `id` | 编辑 DTO，以及秘密已保存标记 |
+| `save` | `account` | 保存后的无秘密 DTO；同步 Windows 任务 |
+| `delete` | 账号 `id` | 删除账号及公开状态；保留每日提交保护 |
+| `diagnose` | 账号 `id` | `queued: true`，后台执行只读检查 |
 
-`account` 接受 `id`（编辑时）、`label`、`student_id`、`password`、`browser_fingerprint`、`run_at`、`automation_enabled` 和 `location`。时间为 `HH:MM`；位置包含 `name`、GCJ-02 `latitude` 和 `longitude`。账号最多 20 个，禁止重复学号。编辑时密码或指纹为空字符串表示保留；读取接口只返回 `password_saved`、`fingerprint_saved`，不返回秘密内容。
+没有登录、注册、远程管理或签到提交接口。随机启动密钥由启动脚本打开的浏览器自动接收，页面使用后从地址栏移除。
 
-请求示例，浏览器自动携带同源 Cookie 和 Origin：
+`account` 接受 `id`（编辑时）、`label`、`student_id`、`password`、`browser_fingerprint`、`run_at`、`automation_enabled` 和 `location`。最多 20 个账号，禁止重复学号；时间为 `HH:MM`，位置为 GCJ-02。编辑时密码、指纹为空字符串代表保留。读取只返回 `password_saved`、`fingerprint_saved`，不返回秘密。
 
-```js
-fetch('/cgi-bin/moonuestc-api', {
-  method: 'POST',
-  credentials: 'same-origin',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({action: 'get', id: 'me'})
-}).then(r => r.json());
-```
+成功返回 `ok: true`；失败返回 `ok: false` 及脱敏的 `message`。缺少启动密钥返回 401，Host 或 Origin 不匹配返回 403，锁占用或重复学号返回 409，非 JSON 返回 415，过大请求返回 413。诊断至少间隔 20 秒，超限返回 429；启动失败返回 503 并清除忙碌状态。
 
-成功响应包含 `ok: true`；失败包含 `ok: false` 和不含秘密的 `message`。未认证返回 401，来源不匹配返回 403，任务占用或重复学号返回 409，非 JSON 返回 415，过大请求返回 413。只读诊断至少间隔 20 秒，频率超限返回 429，启动失败返回 503 并清除忙碌提示。
-
-Cookie 名为 `moonuestc_admin`，Path 为 `/cgi-bin/moonuestc-api`，HttpOnly、SameSite=Strict；HTTPS 下增加 Secure。认证仅转接本机 rpcd，没有另存管理密码。公开状态文件不要求管理认证，不应将此页面或路由器管理服务开放到公网。
+静态 GET 白名单为 `/`、`/accounts.json`、`/status-<id>.json`；配置、源文件和其他路径均不可下载。页面刷新只读取这些本地文件，不访问学校。
