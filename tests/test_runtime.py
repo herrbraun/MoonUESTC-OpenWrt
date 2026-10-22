@@ -95,6 +95,7 @@ class InstallerTests(unittest.TestCase):
                 root = Path(directory)
                 (root / "web").mkdir()
                 (root / "web" / "index.html").write_text('<html data-app="moonuestc-openwrt">')
+                (root / "web" / "platform.js").write_text('window.MOON_PLATFORM={};')
                 (root / "run.sh").touch()
                 (root / "config.json").write_text(json.dumps({"run_at": "21:01", "automation_enabled": False,
                     "student_id": "2099999999999", "password": "Synthetic-Only"}))
@@ -147,6 +148,7 @@ class InstallerTests(unittest.TestCase):
             root = Path(directory)
             (root / "web").mkdir()
             (root / "web" / "index.html").write_text('<html data-app="moonuestc-openwrt">')
+            (root / "web" / "platform.js").write_text('window.MOON_PLATFORM={};')
             (root / "run.sh").touch()
             profile = {"id": "me", "label": "Synthetic", "student_id": "2099999999999",
                        "run_at": "21:01", "automation_enabled": True}

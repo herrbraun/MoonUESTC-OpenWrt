@@ -130,7 +130,7 @@ class AccountStore:
             source = self.get(aid)
         else:
             sources = self.all()
-            source = {"run_at": "21:01", "automation_enabled": True,
+            source = {"run_at": "21:01", "automation_enabled": False,
                       "location": copy.deepcopy((sources[0] if sources else {}).get("location", {}))}
         return {key: source.get(key) for key in ("id", "label", "student_id", "run_at", "automation_enabled", "location")} | {
             "password_saved": bool(source.get("password")),

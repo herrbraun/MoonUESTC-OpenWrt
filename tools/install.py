@@ -22,7 +22,7 @@ def main():
     if not Path("/etc/init.d/uhttpd").exists() or not Path("/etc/init.d/rpcd").exists():
         raise SystemExit("LuCI uhttpd/rpcd with /ubus is required.")
     existing = WEB / "index.html"
-    if existing.exists() and 'data-app="moonuestc-openwrt"' not in existing.read_text(encoding="utf-8"):
+    if existing.exists() and not any(marker in existing.read_text(encoding="utf-8") for marker in ('data-app="moonuestc-openwrt"', 'data-app="moonuestc-lite"')):
         raise SystemExit("The web directory belongs to another installation; no files changed.")
     if CGI.exists() and MARKER not in CGI.read_text(encoding="utf-8"):
         raise SystemExit("The CGI path belongs to another installation; no files changed.")
@@ -61,6 +61,8 @@ def main():
         store.publish()
         shutil.copyfile(ROOT / "web" / "index.html", WEB / "index.html")
         os.chmod(WEB / "index.html", 0o644)
+        shutil.copyfile(ROOT / "web" / "platform.js", WEB / "platform.js")
+        os.chmod(WEB / "platform.js", 0o644)
         os.chmod(ROOT / "run.sh", 0o700)
         CGI.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
         script = "#!/usr/bin/python3\n" + MARKER + "\nimport sys\nsys.path.insert(0, " + repr(str(ROOT)) + ")\nfrom account_api import cgi_main\ncgi_main()\n"

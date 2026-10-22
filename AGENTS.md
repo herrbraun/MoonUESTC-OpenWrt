@@ -12,3 +12,4 @@
 - 安装器保留其他 cron 条目，不覆盖无关网页。
 - 安装路径由程序位置确定；网页与 CGI 分别使用 `/moonuestc/`、`/cgi-bin/moonuestc-api`。
 - 测试使用合成配置，不访问学校；命令见 README。
+- 三分支 `web/index.html` 与 `tests/check_ui.cjs` 保持完全一致；平台差异只放 `web/platform.js`。

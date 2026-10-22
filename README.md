@@ -1,27 +1,26 @@
-# MoonUESTC-OpenWrt
+# MoonUESTC · OpenWrt 轻量版
 
-基于 [MoonUESTC](https://github.com/horoscope963852/MoonUESTC) 的 OpenWrt 低占用版本。Python 按任务启动，网页复用 uhttpd，管理操作使用按需 CGI，不增加常驻 Python 服务。
+基于原作者 **[horoscope963852](https://github.com/horoscope963852)** 的 **[MoonUESTC](https://github.com/horoscope963852/MoonUESTC)** 进行轻量化适配。学校认证、位置与时段判断、提交保护及结果回读的十个核心模块保持上游原样，版本及校验值见 [UPSTREAM.json](UPSTREAM.json)。
 
-支持最多 20 个账号，分别配置地点、执行时间和启用状态。网页可切换账号、添加、编辑、删除，以及发起只读检查；管理操作使用路由器 root 管理密码解锁。
+特色是 **按需运行、减少依赖、界面简洁**。仅依赖 Python 标准库与 PyCryptodome，不引入 Flask、Docker、前端构建链或额外常驻应用服务。三端使用完全相同的页面源码，保留多账号、独立计划、只读检查和状态记录。
 
-## 与上游的区别
+| 分支 | 平台 | 调度与管理页 |
+| --- | --- | --- |
+| [main](https://github.com/herrbraun/MoonUESTC-OpenWrt/tree/main) | OpenWrt | cron，复用 uhttpd，按需 CGI |
+| [windows](https://github.com/herrbraun/MoonUESTC-OpenWrt/tree/windows) | Windows | 系统任务计划，本机管理页按需启动 |
+| [linux](https://github.com/herrbraun/MoonUESTC-OpenWrt/tree/linux) | Linux / systemd | 用户定时器，本机管理页按需启动 |
 
-| 部分 | 本版本 |
-| --- | --- |
-| 学校认证、范围及时段判断、提交和回读 | 十个上游模块原样保留 |
-| Flask 后台、注册、用户权限、Docker | 不包含 |
-| 调度 | OpenWrt cron；同一时间去重，多账号顺序执行，间隔 20 秒 |
-| 状态页 | 单个静态 HTML + 脱敏 JSON；刷新不访问学校 |
-| 管理认证 | 复用 rpcd 管理会话，Cookie 有效期 900 秒 |
-| 私密数据 | 配置、Cookie、数据库位于私有目录，文件权限 0600；没有原版加密保险库 |
+## 先准备参数
 
-不绑定宿舍或路由器型号。已在 CR6608 / OpenWrt 24.10.8 验证登录、位置检查和多账号网页管理；首次真实签到尚未验证。
+需要：**学号、学校密码、本人可信浏览器指纹、地点坐标、执行时间**。首次新增默认暂停计划；时间默认北京时间 `21:01`，位置默认欣苑组团（GCJ-02 纬度 `30.674521`、经度 `104.096295`），均可修改。
 
-## 安装
+**[参数说明与获取方法](docs/parameters.md)** 包含每个字段、指纹的浏览器获取步骤、查询学校允许地点的命令，以及各平台的运行条件。建议先读这一页。
 
-需要已启用 LuCI 的 OpenWrt，uhttpd 提供 `/cgi-bin` 和 `/ubus`，rpcd 允许 root 登录及 `luci-base` 写权限。当前认证桥接使用本机 HTTP 80 端口。运行前确认系统时间及 cron 时区为北京时间。
+## 安装 OpenWrt 版
 
-将仓库文件放到路由器 `/root/MoonUESTC-OpenWrt`，在使用 opkg 的系统中执行：
+以下适用于已带 LuCI 的 OpenWrt 24.10 / opkg。需要 uhttpd 的 `/cgi-bin`、本机 `/ubus`、rpcd root 登录及 `luci-base` 写权限；已验证 CR6608 / OpenWrt 24.10.8，其他型号未实机验证。
+
+下载 main 分支源码，上传到 `/root/MoonUESTC-OpenWrt`，以 root 执行：
 
 ```sh
 opkg update
@@ -30,27 +29,26 @@ cd /root/MoonUESTC-OpenWrt
 sh install.sh
 ```
 
-访问 `http://路由器地址/moonuestc/`，点击“管理”输入路由器 root 管理密码，再添加账号。管理密码通过当前连接提交，建议使用已配置的 HTTPS 访问；仅在可信内网开放管理页。
+访问 `http://路由器地址/moonuestc/`，点击“管理”输入路由器 root 管理密码，再添加账号。仅在可信内网使用管理页，优先沿用路由器已有的 HTTPS 配置。首次空配置安装不访问学校。
 
-填写学校账号、密码、可信浏览器指纹，以及实际配置的 GCJ-02 位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑时密码、指纹留空表示保留。未配置位置时默认填入欣苑组团（GCJ-02：纬度 `30.674521`，经度 `104.096295`），可在“位置”中修改；已有位置保留。
+安装保留其他 cron 条目及已有账号，并备份配置、原 cron 和网页。旧 `config.json` 在首次迁移前做只读校验，已有 `profiles/` 的升级不重新迁移或登录学校。运行前确认路由器系统和 cron 时区为北京时间，设备需在计划时间正常联网。
 
-如需先从命令行查询学校地点，可填写 `config.example.json` 的副本 `config.json`，执行 `python3 lite.py locations`。旧版 `config.json` 会在首次安装时只读校验并迁移为 `me`，保留原时间和启用状态；已有 `profiles/` 的升级不会重新迁移或重新登录学校。安装备份配置、原 cron 和网页，并保留其他 cron 条目。
+配置与 Cookie 使用私有目录、文件权限 0600，没有原版完整后台的加密保险库。最近定时日志为 `last-run.log`。
 
-## 运行与停用
+开发验证：`python -m unittest discover -s tests`、`node tests/check_ui.cjs`。
 
-安装后配置以 `profiles/<id>.json` 为准，旧 `config.json` 仅作迁移来源。网页关闭账号计划即可暂停，修改时间会同步更新 cron。账号名称、脱敏学号、计划和结果可被内网访客查看，秘密不进入公开状态文件。
+## 使用与数据
 
-```sh
-python3 multi.py diagnose --account me    # 登录及状态查询，不提交
-python3 multi.py prepare --account me     # 位置和时段检查，不提交
-python3 multi.py checkin --account me --submit  # 手动提交并回读
-cat last-run.log                         # 最近一批定时任务日志
-```
+编辑账号时密码、指纹留空表示保留。页面“检查”只做认证和考勤查询；位置校验用 `prepare`，具体命令见参数文档。确认配置后再开启定时计划；关闭计划可暂停。最多 20 个账号，按需顺序执行，账号间隔 20 秒。
 
-二次验证或验证码需要本人处理；配置坐标不是实时 GPS。每账号独立状态及最多八条摘要，共享 `state/` 按学号隔离 Cookie 和每日提交保护。成功以学校记录回读为准，结果不明确时不会盲目重发。删除账号不会删除这些提交保护记录。
+网页刷新只读本地缓存。提交成功以学校记录回读为准，结果不明确时不盲目重发；删除账号不会清除每日提交保护。二次验证由本人处理，配置坐标不是实时 GPS。
+
+`profiles/`、`state/`、`runtime/` 和日志均不进入 Git。不同平台请使用独立源码目录并重新录入凭据，不要将真实运行数据上传仓库。
 
 ## 验证与来源
 
-开发机运行 `python -m pip install -r requirements.txt`，然后 `python -m unittest discover -s tests`。测试使用合成配置，不访问学校。可用 Chrome 和 Node.js 执行 `node tests/check_ui.cjs` 检查网页；非默认 Chrome 路径使用 `CHROME_PATH` 环境变量指定。
+测试使用合成账号，不登录学校、不触发真实签到。三端包含离线测试与桌面/手机页面检查，Linux 另有原生 systemd 单元校验。首次真实签到仍待验证。
 
-[结构与调度](docs/architecture.md) · [管理 API](docs/API.md) · [上游版本与校验](UPSTREAM.json) · [来源声明](NOTICE.md) · [许可证](LICENSE)
+原作者与第三方来源见 [NOTICE.md](NOTICE.md)，完整许可保留于 [LICENSE](LICENSE) 和 `licenses/`。上游参考的 GoodNight、UESTC-MoonCheck、coordtransform 及相应作者声明均保留。
+
+[参数获取](docs/parameters.md) · [结构与调度](docs/architecture.md) · [管理 API](docs/API.md)

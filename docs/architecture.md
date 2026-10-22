@@ -24,3 +24,5 @@ uhttpd 提供 `/moonuestc/index.html`、`accounts.json` 和 `status-<id>.json`�
 认证通过本机 `http://127.0.0.1/ubus` 转接 rpcd，检查 `luci-base` 写权限。密码与可信指纹不回传；管理员才能取得用于编辑的完整学号。Cookie 使用 HttpOnly、SameSite=Strict；HTTPS 访问时增加 Secure。原版的应用用户管理与加密保险库没有移植。
 
 安装器固定使用 `/www/moonuestc` 和 `/www/cgi-bin/moonuestc-api`，运行目录由安装器本身的位置决定。拒绝覆盖未带本项目标记的网页或 CGI；升级已有账号时不请求学校，不改变计划开关。
+
+三端共用同一份 `web/index.html`，平台名称、API 入口和授权方式通过 `web/platform.js` 注入。安装时需一并部署这两个文件。新增账号默认暂停计划；参数及来源见 [parameters.md](parameters.md)。

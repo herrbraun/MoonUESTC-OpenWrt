@@ -32,6 +32,9 @@ class AccountsTest(unittest.TestCase):
     def fields(self, **extra):
         return dict(label="测试账号", **self.original) | extra
 
+    def test_new_account_draft_starts_paused(self):
+        self.assertIs(self.store.editable()["automation_enabled"], False)
+
     def test_migration_and_secret_redaction(self):
         self.store.migrate()
         self.assertEqual(self.store.ids(), ["me"])

@@ -24,6 +24,7 @@
     "install.sh",
     "tools/install.py",
     "web/index.html",
-    "tests/"
+    "tests/",
+    "web/platform.js"
   ]
 }

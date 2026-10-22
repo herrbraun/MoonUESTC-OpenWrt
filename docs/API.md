@@ -28,3 +28,5 @@ fetch('/cgi-bin/moonuestc-api', {
 成功响应包含 `ok: true`；失败包含 `ok: false` 和不含秘密的 `message`。未认证返回 401，来源不匹配返回 403，任务占用或重复学号返回 409，非 JSON 返回 415，过大请求返回 413。只读诊断至少间隔 20 秒，频率超限返回 429，启动失败返回 503 并清除忙碌提示。
 
 Cookie 名为 `moonuestc_admin`，Path 为 `/cgi-bin/moonuestc-api`，HttpOnly、SameSite=Strict；HTTPS 下增加 Secure。认证仅转接本机 rpcd，没有另存管理密码。公开状态文件不要求管理认证，不应将此页面或路由器管理服务开放到公网。
+
+统一页面根据 `web/platform.js` 选择本平台接口与授权方式；新增账号草稿默认 `automation_enabled: false`。字段来源见 [parameters.md](parameters.md)。

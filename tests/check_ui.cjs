@@ -7,6 +7,8 @@ const path = require('node:path');
 const {spawn} = require('node:child_process');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'));
+const platformSource = fs.readFileSync(path.join(__dirname, '..', 'web', 'platform.js'), 'utf8');
+const platform = JSON.parse(platformSource.split('=', 2)[1].trim().replace(/;$/, ''));
 const accounts = [
   {id:'me', label:'测试账号 A', studentMask:'20••••01', runAt:'21:01', enabled:true},
   {id:'alt', label:'测试账号 B', studentMask:'20••••02', runAt:'22:03', enabled:false}
@@ -20,6 +22,10 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.end(html);
   }
+  if (url.pathname.endsWith('/platform.js')) {
+    res.setHeader('Content-Type', 'application/javascript');
+    return res.end(platformSource);
+  }
   if (url.pathname.endsWith('/accounts.json')) value = {accounts};
   else if (url.pathname.endsWith('/status-me.json')) value = {
     history:[{result:'auth_ready',time:'2026-10-22T21:01:00+08:00'}],
@@ -28,13 +34,14 @@ const server = http.createServer(async (req, res) => {
   else if (url.pathname.endsWith('/status-alt.json')) {
     await pause(150);
     value = {history:[],location:{name:'Synthetic B'}};
-  } else if (url.pathname === '/cgi-bin/moonuestc-api') {
+  } else if (url.pathname === platform.api) {
     if (req.method === 'GET') value = {ok:true,authenticated:true};
     else {
       let body = '';
       for await (const part of req) body += part;
       const fields = JSON.parse(body);
       assert.equal(fields.action, 'get', 'Browser check must not write or submit');
+      if(platform.auth==='local') assert.equal(req.headers['x-moonuestc-key'], 'synthetic-test-only');
       const account = accounts.find(a => a.id === fields.id);
       value = {ok:true,account:account ? {
         id:account.id,label:account.label,student_id:'2099999999999',
@@ -51,9 +58,9 @@ const server = http.createServer(async (req, res) => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'moonuestc-ui-'));
-  const chrome = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  const chrome = process.env.CHROME_PATH || (process.platform==='win32'?'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe':'/usr/bin/google-chrome');
   const child = spawn(chrome, [
-    '--headless=new','--disable-gpu','--no-proxy-server','--disable-background-networking',
+    '--headless=new',...(process.env.CI?['--no-sandbox']:[]),'--disable-gpu','--no-proxy-server','--disable-background-networking',
     '--disable-component-update','--disable-extensions','--no-first-run','--no-default-browser-check',
     '--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'
   ], {windowsHide:true,stdio:'ignore'});
@@ -95,7 +102,10 @@ const server = http.createServer(async (req, res) => {
     };
     await rpc('Runtime.enable');
     await rpc('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
-    await rpc('Page.navigate',{url:base+'/moonuestc/'});
+    await rpc('Page.navigate',{url:base+'/moonuestc/#key=synthetic-test-only'});
+    await waitFor("document.getElementById('location')?.textContent==='Synthetic A'");
+    assert.equal(await evaluate("location.hash"),'');
+    await rpc('Page.reload');
     await waitFor("document.getElementById('location')?.textContent==='Synthetic A'");
     assert.equal(await evaluate("document.getElementById('window').textContent"),'尚未读取');
     await evaluate("document.getElementById('account-select').value='alt';document.getElementById('account-select').dispatchEvent(new Event('change'))");
@@ -121,7 +131,7 @@ const server = http.createServer(async (req, res) => {
     await waitFor("document.getElementById('account-dialog').open");
     assert.deepEqual(await evaluate("['location-name','latitude','longitude'].map(id=>document.getElementById(id).value)"),['欣苑组团','30.674521','104.096295']);
     assert.deepEqual(errors,[]);
-    assert.ok(requests.includes('/cgi-bin/moonuestc-api'));
+    assert.ok(requests.includes(platform.api));
     console.log('Offline Chrome UI passed: account isolation, paused state, Xinyuan defaults and preserved custom coordinates, secret fields, desktop and 390px mobile.');
   } finally {
     if(ws) ws.close();
