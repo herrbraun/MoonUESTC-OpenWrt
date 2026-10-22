@@ -24,12 +24,13 @@
     "secret_store.py",
     "windows_schedule.py",
     "run_task.py",
-    "tools/install_windows.py",
+    "tools/install_platform.py",
     "web/index.html",
     "安装.cmd",
     "启动管理页.cmd",
     "移除定时任务.cmd",
-    "tests/"
+    "tests/",
+    "web/platform.js"
   ],
   "platform": "windows"
 }

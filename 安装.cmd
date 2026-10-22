@@ -12,7 +12,7 @@ if errorlevel 1 goto failed
 if errorlevel 1 goto failed
 ".venv\Scripts\python.exe" -X utf8 lite.py selftest
 if errorlevel 1 goto failed
-".venv\Scripts\python.exe" -X utf8 tools\install_windows.py
+".venv\Scripts\python.exe" -X utf8 tools\install_platform.py
 if errorlevel 1 goto failed
 echo Installation complete. Open the dashboard launcher.
 pause

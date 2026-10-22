@@ -10,7 +10,7 @@
 | `account_api.py` | 已认证请求的账号增删改与只读检查 |
 | `secret_store.py` | 当前用户 DPAPI，密码与指纹磁盘加密 |
 | `account_store.py` | 私有账号文件、脱敏公开数据、计划更新与回滚 |
-| `tools/install_windows.py` | 初始化仅用户、SYSTEM、管理员可访问的私有目录 |
+| `tools/install_platform.py` | 初始化仅用户、SYSTEM、管理员可访问的私有目录 |
 
 任务 XML 为每个启用时间生成一个 CalendarTrigger，使用 `+08:00`，同一时刻去重。任务采用 InteractiveToken、LeastPrivilege，运行 `pythonw.exe run_task.py`，不保存 Windows 登录密码。系统设置 Parallel，先按触发时刻启动批次，再由应用调度锁串行处理，以保留各批启动分钟；不自动重试或补跑错过的任务。
 
@@ -23,3 +23,5 @@
 `POST /api` 仅接受 `get`、`save`、`delete`、`diagnose`，详见 [API.md](API.md)。诊断启动独立的短期只读进程，完成后退出；没有网页签到提交接口。页面和系统任务彼此独立。
 
 密码和浏览器指纹通过 Windows 当前用户 DPAPI 加密；Cookie、SQLite 和日志由 NTFS 私有目录保护。没有沿用上游完整后台的用户管理、队列服务或加密保险库。
+
+三端共用同一份 `web/index.html`，平台名称、API 入口和授权方式通过 `web/platform.js` 注入。安装时需一并部署这两个文件。新增账号默认暂停计划；参数及来源见 [parameters.md](parameters.md)。
