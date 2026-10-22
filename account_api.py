@@ -115,7 +115,7 @@ def dispatch(fields, env, store, auth=authenticated):
             state["busy"] = True
             atomic_json(path, state, 0o644)
             try:
-                subprocess.Popen([sys.executable, str(store.root / "multi.py"), "diagnose", "--account", aid],
+                subprocess.Popen([sys.executable, "-X", "utf8", str(store.root / "multi.py"), "diagnose", "--account", aid],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     close_fds=True, start_new_session=True)
             except OSError:

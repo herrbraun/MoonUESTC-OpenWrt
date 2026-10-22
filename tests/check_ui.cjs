@@ -63,13 +63,14 @@ const server = http.createServer(async (req, res) => {
     '--headless=new',...(process.env.CI?['--no-sandbox']:[]),'--disable-gpu','--no-proxy-server','--disable-background-networking',
     '--disable-component-update','--disable-extensions','--no-first-run','--no-default-browser-check',
     '--remote-debugging-port=0','--user-data-dir='+profile,'about:blank'
-  ], {windowsHide:true,stdio:'ignore'});
-  let ws;
+  ], {windowsHide:true,stdio:['ignore','ignore','pipe']});
+  let ws, chromeError='';
+  child.stderr.on('data', data => {chromeError=(chromeError+data.toString()).slice(-4000);});
   child.on('error', error => errors.push(error.message));
   try {
     const portFile = path.join(profile, 'DevToolsActivePort');
-    for(let i=0; !fs.existsSync(portFile) && i<80; i++) await pause(100);
-    assert.ok(fs.existsSync(portFile), 'Chrome did not start; set CHROME_PATH');
+    for(let i=0; !fs.existsSync(portFile) && i<200; i++) await pause(100);
+    assert.ok(fs.existsSync(portFile), 'Chrome did not start; set CHROME_PATH. '+errors.join('; ')+' '+chromeError);
     const port = fs.readFileSync(portFile,'utf8').split('\n')[0];
     const tabs = await (await fetch('http://127.0.0.1:'+port+'/json/list')).json();
     ws = new WebSocket(tabs.find(t => t.type==='page').webSocketDebuggerUrl);
