@@ -32,7 +32,7 @@ sh install.sh
 
 访问 `http://路由器地址/moonuestc/`，点击“管理”输入路由器 root 管理密码，再添加账号。管理密码通过当前连接提交，建议使用已配置的 HTTPS 访问；仅在可信内网开放管理页。
 
-填写学校账号、密码、可信浏览器指纹，以及实际配置的 GCJ-02 位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑时密码、指纹留空表示保留。
+填写学校账号、密码、可信浏览器指纹，以及实际配置的 GCJ-02 位置。指纹来自本人已完成学校验证的浏览器：开发者工具 → Application → Cookies → `idas.uestc.edu.cn` → `MULTIFACTOR_BROWSER_FINGERPRINT` 的 Value。编辑时密码、指纹留空表示保留。未配置位置时默认填入欣苑组团（GCJ-02：纬度 `30.674521`，经度 `104.096295`），可在“位置”中修改；已有位置保留。
 
 如需先从命令行查询学校地点，可填写 `config.example.json` 的副本 `config.json`，执行 `python3 lite.py locations`。旧版 `config.json` 会在首次安装时只读校验并迁移为 `me`，保留原时间和启用状态；已有 `profiles/` 的升级不会重新迁移或重新登录学校。安装备份配置、原 cron 和网页，并保留其他 cron 条目。
 

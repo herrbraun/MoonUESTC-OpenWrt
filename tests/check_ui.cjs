@@ -39,7 +39,7 @@ const server = http.createServer(async (req, res) => {
       value = {ok:true,account:account ? {
         id:account.id,label:account.label,student_id:'2099999999999',
         run_at:account.runAt,automation_enabled:account.enabled,
-        password_saved:true,fingerprint_saved:true,location:{}
+        password_saved:true,fingerprint_saved:true,location:{name:'Synthetic custom',latitude:30.5,longitude:104.1}
       } : {run_at:'21:01',automation_enabled:false,location:{}}};
     }
   } else { res.statusCode = 404; return res.end(); }
@@ -108,6 +108,7 @@ const server = http.createServer(async (req, res) => {
       await evaluate("document.getElementById('edit').click()");
       await waitFor("document.getElementById('account-dialog').open");
       assert.deepEqual(await evaluate("['school-password','fingerprint'].map(id=>document.getElementById(id).value)"),['','']);
+      assert.deepEqual(await evaluate("['location-name','latitude','longitude'].map(id=>document.getElementById(id).value)"),['Synthetic custom','30.5','104.1']);
       assert.ok(await evaluate("document.getElementById('account-dialog').getBoundingClientRect().right<=innerWidth"));
       if(process.env.UI_SCREENSHOT_DIR) {
         fs.mkdirSync(process.env.UI_SCREENSHOT_DIR,{recursive:true});
@@ -118,10 +119,10 @@ const server = http.createServer(async (req, res) => {
     }
     await evaluate("document.getElementById('add').click()");
     await waitFor("document.getElementById('account-dialog').open");
-    assert.deepEqual(await evaluate("['location-name','latitude','longitude'].map(id=>document.getElementById(id).value)"),['','','']);
+    assert.deepEqual(await evaluate("['location-name','latitude','longitude'].map(id=>document.getElementById(id).value)"),['欣苑组团','30.674521','104.096295']);
     assert.deepEqual(errors,[]);
     assert.ok(requests.includes('/cgi-bin/moonuestc-api'));
-    console.log('Offline Chrome UI passed: account isolation, paused state, empty defaults, secret fields, desktop and 390px mobile.');
+    console.log('Offline Chrome UI passed: account isolation, paused state, Xinyuan defaults and preserved custom coordinates, secret fields, desktop and 390px mobile.');
   } finally {
     if(ws) ws.close();
     child.kill();

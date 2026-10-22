@@ -8,9 +8,9 @@
   "location_radius_meter": null,
   "location": {
     "mode": "fixed",
-    "name": "自定义地点",
-    "latitude": null,
-    "longitude": null,
+    "name": "欣苑组团",
+    "latitude": 30.674521,
+    "longitude": 104.096295,
     "coordinate_system": "gcj02",
     "reverse_geocode": ""
   }
