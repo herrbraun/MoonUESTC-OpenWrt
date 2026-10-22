@@ -23,13 +23,13 @@ def dispatch(fields, store):
         store.get(aid)
         with execution_lock(store.root / "api-queue"):
             recent = store.root / "api-last-request.json"
-            if recent.exists() and time.time() - json.loads(recent.read_text()).get("at", 0) < 20:
+            if recent.exists() and time.time() - json.loads(recent.read_text(encoding="utf-8")).get("at", 0) < 20:
                 raise StoreError("请间隔20秒再检查", 429)
             with execution_lock(store.root / "scheduler"):
                 pass
             atomic_json(recent, {"at": time.time()})
             path = store.status_path(aid)
-            state = json.loads(path.read_text()) if path.exists() else {}
+            state = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
             state["busy"] = True
             atomic_json(path, state, 0o644)
             try:

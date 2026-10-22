@@ -38,7 +38,7 @@ def write_public_status():
     previous = {}
     try:
         if STATUS_PATH.exists() and STATUS_PATH.stat().st_size < 65536:
-            previous = json.loads(STATUS_PATH.read_text())
+            previous = json.loads(STATUS_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
     snapshot = {key: previous[key] for key in (

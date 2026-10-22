@@ -60,7 +60,7 @@ class ScheduleTests(unittest.TestCase):
                 self.assertFalse(any(p.name.endswith('2101.timer') for p in units.iterdir()))
                 schedule.sync_schedule([],root,units)
             self.assertEqual(list(units.iterdir()),[other])
-            self.assertEqual(other.read_text(),'unchanged')
+            self.assertEqual(other.read_text(encoding="utf-8"),'unchanged')
             self.assertFalse(any(args[0]=='stop' and any(a.endswith('.service') for a in args) for args in calls))
 
     def test_failed_update_restores_previous_units(self):
@@ -69,7 +69,7 @@ class ScheduleTests(unittest.TestCase):
             def ok(args,check=True): return subprocess.CompletedProcess(args,0)
             with patch.object(schedule,'run_systemctl',side_effect=ok):
                 schedule.sync_schedule([dict(run_at='21:01',automation_enabled=True)],root,units)
-            previous={p.name:p.read_text() for p in units.iterdir()}
+            previous={p.name:p.read_text(encoding="utf-8") for p in units.iterdir()}
             failed=[]
             def run(args,check=True):
                 if args[:2]==['enable','--now'] and not failed:
@@ -77,7 +77,7 @@ class ScheduleTests(unittest.TestCase):
                 return subprocess.CompletedProcess(args,0)
             with patch.object(schedule,'run_systemctl',side_effect=run),self.assertRaises(OSError):
                 schedule.sync_schedule([dict(run_at='22:03',automation_enabled=True)],root,units)
-            self.assertEqual({p.name:p.read_text() for p in units.iterdir()},previous)
+            self.assertEqual({p.name:p.read_text(encoding="utf-8") for p in units.iterdir()},previous)
 
     def test_unowned_unit_is_never_overwritten(self):
         with tempfile.TemporaryDirectory(dir=ROOT.parent) as directory:
@@ -85,7 +85,7 @@ class ScheduleTests(unittest.TestCase):
             target=units/(schedule.identity(root)[0]+'2101.timer');target.write_text('unrelated owner')
             with patch.object(schedule,'run_systemctl') as call,self.assertRaises(OSError):
                 schedule.sync_schedule([dict(run_at='21:01',automation_enabled=True)],root,units)
-            call.assert_not_called();self.assertEqual(target.read_text(),'unrelated owner')
+            call.assert_not_called();self.assertEqual(target.read_text(encoding="utf-8"),'unrelated owner')
 
 
 class LocalServerTests(unittest.TestCase):
@@ -134,14 +134,14 @@ class LocalServerTests(unittest.TestCase):
         status, value = self.post({'action':'save','account':self.fields()})
         self.assertEqual(status,200)
         aid = value['account']['id']
-        raw = self.store.path(aid).read_text()
+        raw = self.store.path(aid).read_text(encoding="utf-8")
         if __import__('os').name == 'posix':
             self.assertEqual(__import__('stat').S_IMODE(self.store.path(aid).stat().st_mode),0o600)
         self.assertEqual(self.store.get(aid)['password'], self.fields()['password'])
         with patch.object(lite, 'DirectTransport') as transport, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(multi.run_profile(self.store, aid, 'scheduled'), 0)
             transport.assert_not_called()
-        self.assertEqual(json.loads(self.store.status_path(aid).read_text())['lastRun']['reason'], 'automation_disabled')
+        self.assertEqual(json.loads(self.store.status_path(aid).read_text(encoding="utf-8"))['lastRun']['reason'], 'automation_disabled')
         status, value = self.post({'action':'get','id':aid})
         self.assertNotIn('password',value['account'])
         self.assertNotIn('browser_fingerprint',value['account'])
@@ -173,7 +173,7 @@ class TaskEntryTests(unittest.TestCase):
             with patch.object(run_task, 'HERE', root), patch.object(run_task.multi, 'main', side_effect=worker):
                 self.assertEqual(run_task.main(), 0)
             self.assertIs(sys.argv, original)
-            self.assertEqual((root/'runtime'/'last-run.log').read_text().strip(), 'Synthetic event')
+            self.assertEqual((root/'runtime'/'last-run.log').read_text(encoding="utf-8").strip(), 'Synthetic event')
             self.assertEqual(list((root/'runtime').glob('task-*.log')), [])
 
     def test_exception_text_never_enters_task_log(self):
@@ -181,7 +181,7 @@ class TaskEntryTests(unittest.TestCase):
             root = Path(directory)
             with patch.object(run_task, 'HERE', root), patch.object(run_task.multi, 'main', side_effect=RuntimeError('Synthetic-Secret-Never-Log')):
                 self.assertEqual(run_task.main(), 2)
-            raw = (root/'runtime'/'last-run.log').read_text()
+            raw = (root/'runtime'/'last-run.log').read_text(encoding="utf-8")
             self.assertNotIn('Synthetic-Secret-Never-Log', raw)
             self.assertIn('local_runtime_error', raw)
 

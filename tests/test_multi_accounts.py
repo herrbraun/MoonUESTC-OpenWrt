@@ -39,7 +39,7 @@ class AccountsTest(unittest.TestCase):
         self.store.migrate()
         self.assertEqual(self.store.ids(), ["me"])
         self.assertEqual(self.store.get("me")["password"], self.original["password"])
-        self.assertEqual(json.loads(self.store.status_path("me").read_text())["history"][0]["result"], "confirmed")
+        self.assertEqual(json.loads(self.store.status_path("me").read_text(encoding="utf-8"))["history"][0]["result"], "confirmed")
         public = (self.public / "accounts.json").read_text(encoding="utf-8")
         for secret in (self.original["password"], self.original["browser_fingerprint"], self.original["student_id"]):
             self.assertNotIn(secret, public)
@@ -54,9 +54,9 @@ class AccountsTest(unittest.TestCase):
             self.store.save(self.fields())
         created = self.store.save(self.fields(student_id="209900000002", automation_enabled=False))
         self.assertEqual(len(self.store.ids()), 2)
-        self.assertFalse(json.loads(self.store.status_path(created["id"]).read_text()).get("auth"))
+        self.assertFalse(json.loads(self.store.status_path(created["id"]).read_text(encoding="utf-8")).get("auth"))
         self.store.save(self.fields(id="me", student_id="209900000003"))
-        status = json.loads(self.store.status_path("me").read_text())
+        status = json.loads(self.store.status_path("me").read_text(encoding="utf-8"))
         self.assertEqual(status["history"], [])
         self.assertNotIn("auth", status)
         self.store.delete(created["id"])
@@ -65,7 +65,7 @@ class AccountsTest(unittest.TestCase):
 
     def test_credential_change_invalidates_auth(self):
         self.store.save(self.fields(id="me", password="new-synthetic"))
-        state = json.loads(self.store.status_path("me").read_text())
+        state = json.loads(self.store.status_path("me").read_text(encoding="utf-8"))
         self.assertNotIn("auth", state)
         self.assertEqual(len(state["history"]), 1)
 
@@ -93,7 +93,7 @@ class AccountsTest(unittest.TestCase):
         with patch.object(account_api.subprocess, "Popen", side_effect=OSError("synthetic")):
             with self.assertRaises(StoreError):
                 account_api.dispatch({"action": "diagnose", "id": "me"}, self.store)
-        self.assertNotIn("busy", json.loads(self.store.status_path("me").read_text()))
+        self.assertNotIn("busy", json.loads(self.store.status_path("me").read_text(encoding="utf-8")))
 
     def test_nearby_schedule_waits_for_active_batch(self):
         attempts = []
@@ -131,7 +131,7 @@ class AccountsTest(unittest.TestCase):
         store = AccountStore(self.root / "empty", self.public / "empty", lambda _: None)
         store.migrate()
         self.assertEqual(store.ids(), [])
-        self.assertEqual(json.loads((store.public / "accounts.json").read_text()), {"accounts": []})
+        self.assertEqual(json.loads((store.public / "accounts.json").read_text(encoding="utf-8")), {"accounts": []})
 
     def test_multi_checkin_requires_explicit_submit(self):
         with patch.object(sys, "argv", ["multi.py", "checkin", "--due"]), self.assertRaises(StoreError):
